@@ -1,0 +1,152 @@
+
+---
+title: "Employee Attrition Prediction Project"
+author: "Anugraha Jayakumar"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Introduction
+This project focuses on predicting employee attrition using machine learning models. The dataset includes features such as employee satisfaction, last evaluation, number of projects, average monthly hours, and salary levels. The objective is to predict the likelihood of employees leaving and to derive actionable insights for HR teams.
+
+---
+
+# Load Required Libraries
+```{r setup, include=TRUE}
+# Load essential libraries
+library(tidymodels)
+library(visdat)
+library(tidyr)
+library(car)
+library(pROC)
+library(ROCit)
+library(ggplot2)
+library(vip)
+library(rpart.plot)
+library(fastDummies)
+```
+
+---
+
+# Data Preprocessing
+```{r data-preprocessing}
+# Load training and test datasets (replace file path as needed)
+hr_train <- read.csv("hr_train.csv")
+hr_test <- read.csv("hr_test.csv")
+
+# Create dummy variables for categorical columns (sales and salary)
+hr_train_dummies <- hr_train %>%
+  dummy_cols(select_columns = c("sales", "salary"), remove_first_dummy = TRUE)
+
+hr_test_dummies <- hr_test %>%
+  dummy_cols(select_columns = c("sales", "salary"), remove_first_dummy = TRUE)
+
+# Drop original sales and salary columns
+hr_train_dummies <- hr_train_dummies %>% select(-sales, -salary)
+hr_test_dummies <- hr_test_dummies %>% select(-sales, -salary)
+```
+
+---
+
+# Exploratory Data Analysis
+```{r exploratory-analysis}
+# Visualize missing values and check data structure
+vis_dat(hr_train_dummies)
+glimpse(hr_train_dummies)
+```
+
+---
+
+# Model Building and Evaluation
+
+## Logistic Regression with Feature Selection
+```{r logistic-regression}
+# Splitting the data
+set.seed(2)
+s <- sample(1:nrow(hr_train_dummies), 0.8 * nrow(hr_train_dummies))
+train.build <- hr_train_dummies[s, ]
+train.test <- hr_train_dummies[-s, ]
+
+# Check multicollinearity using VIF
+for_vif <- lm(left ~ ., data = train.build)
+sort(vif(for_vif), decreasing = TRUE)[1:3]
+
+# Fit logistic regression model with stepwise selection
+log_fit <- glm(left ~ ., data = train.build, family = "binomial")
+log_fit <- step(log_fit)
+
+# Final logistic regression model after stepwise selection
+summary(log_fit)
+```
+
+## Model Performance Evaluation (Logistic Regression)
+```{r logistic-performance}
+# Predict probabilities on test data
+val.score <- predict(log_fit, newdata = train.test, type = "response")
+
+# Compute and display AUC
+auc_score <- pROC::auc(pROC::roc(train.test$left, val.score))
+print(paste("AUC Score:", auc_score))
+
+# KS Plot and Best Cutoff
+m <- measureit(score = round(val.score, 3), class = train.test$left,
+               measure = c("ACC", "SENS", "SPEC", "PREC", "FSCR"))
+cutoff_data <- data.frame(
+  Cutoff = m$Cutoff, Accuracy = m$ACC, Sensitivity = m$SENS, Specificity = m$SPEC
+)
+```
+
+---
+
+## Decision Tree Model
+```{r decision-tree}
+# Define a decision tree model
+tree_model <- decision_tree(cost_complexity = tune(), tree_depth = tune(), min_n = tune()) %>%
+  set_engine("rpart") %>%
+  set_mode("classification")
+
+# Perform cross-validation and hyperparameter tuning
+folds <- vfold_cv(hr_train_dummies, v = 5)
+tree_grid <- grid_regular(cost_complexity(), tree_depth(), min_n(), levels = 3)
+my_res <- tune_grid(tree_model, left ~ ., resamples = folds, grid = 5, metrics = metric_set(roc_auc))
+
+# Finalize and fit the best model
+final_tree_fit <- finalize_model(tree_model, select_best(my_res, "roc_auc"))
+final_tree_fit <- fit(final_tree_fit, left ~ ., data = hr_train_dummies)
+
+# Feature Importance Plot
+vip(final_tree_fit, geom = "col", aesthetics = list(fill = "midnightblue"))
+```
+
+---
+
+## Random Forest Model
+```{r random-forest}
+# Define and tune random forest model
+rf_model <- rand_forest(mtry = tune(), trees = tune(), min_n = tune()) %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+rf_grid <- grid_regular(mtry(c(5, 25)), trees(c(100, 200)), min_n(c(2, 10)), levels = 2)
+rf_res <- tune_grid(rf_model, left ~ ., resamples = folds, grid = rf_grid, metrics = metric_set(roc_auc))
+
+# Final random forest model
+final_rf_fit <- finalize_model(rf_model, select_best(rf_res, "roc_auc"))
+final_rf_fit <- fit(final_rf_fit, left ~ ., data = hr_train_dummies)
+```
+
+---
+
+# Insights and Conclusion
+Based on the models developed, key drivers of employee attrition include:
+- Low satisfaction levels
+- Higher-than-average monthly working hours
+- Low and medium salary categories
+
+These insights can help HR teams prioritize employees at high risk of leaving and implement targeted retention strategies.
+
+---
+
+# References
+- Tidymodels Documentation: https://www.tidymodels.org/
+- R Documentation: https://www.rdocumentation.org/
