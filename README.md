@@ -4,7 +4,7 @@ An HR attrition project in Python — EDA, three classification models, an AI la
 
 ## The question
 
-Instead of asking generic questions like "does satisfaction predict attrition," I focused on one specific group: employees whose `last_evaluation` is above average **and** who've handled 4+ projects — my definition of a "good employee." (`left` was deliberately left out of that definition so the finding wouldn't be circular.)
+Instead of asking generic questions like "does satisfaction predict attrition," I focused on one specific group: employees whose `last_evaluation` is above average **and** who've handled 4+ projects — my definition of a "good employee."
 
 About **35.5%** of the workforce (3,729 of 10,499) fits that definition.
 
