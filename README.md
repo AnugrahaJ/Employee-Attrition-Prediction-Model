@@ -44,8 +44,6 @@ Together they mean someone in HR can ask "why is this person at risk?" or "how b
 
 Handles the simpler, single-variable and departmental views, leaving the deeper multivariable analysis to Python.
 
-![Employee Attrition Dashboard](images/attrition_dashboard.png)
-
 A few things worth noting:
 - Overall attrition sits at **29.3%** — right between the good-employee rate (~38%) and the general rate (~24%) from the Python EDA, a nice sanity check
 - Tenure-based attrition peaks at year 5 (~55%), consistent with the Python finding
